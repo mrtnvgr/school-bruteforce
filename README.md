@@ -1,4 +1,4 @@
-# "Сетевой Город" password bruteforcer
+# "Сетевой Город" and "Учи.ру" password bruteforcer
 
 >Не используй на чужих аккаунтах!
 

