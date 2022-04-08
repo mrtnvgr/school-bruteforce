@@ -1,8 +1,9 @@
+#!/bin/python
 import requests, os, time, sys, json, re
 import urllib.parse
 from hashlib import md5
 
-title = " School-Bruteforce v2.0.2"
+title = " School-Bruteforce v2.0.2-1"
 
 
 def ng_getauthdata(config):
